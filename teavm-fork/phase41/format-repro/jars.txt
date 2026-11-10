@@ -1,0 +1,11 @@
+/home/hatch/workspace/score-reader-spikes/teavm-wasm/teavm/shims.jar
+/home/hatch/workspace/score-reader-spikes/teavm-wasm/teavm-fork/lib-fork/teavm-classlib-0.16.0.jar
+/home/hatch/workspace/score-reader-spikes/teavm-wasm/teavm/lib/teavm-core-0.16.0.jar
+/home/hatch/workspace/score-reader-spikes/teavm-wasm/teavm/lib/teavm-interop-0.16.0.jar
+/home/hatch/workspace/score-reader-spikes/teavm-wasm/teavm/lib/teavm-jso-0.16.0.jar
+/home/hatch/workspace/score-reader-spikes/teavm-wasm/teavm/lib/teavm-jso-apis-0.16.0.jar
+/home/hatch/workspace/score-reader-spikes/teavm-wasm/teavm/lib/teavm-jso-impl-0.16.0.jar
+/home/hatch/workspace/score-reader-spikes/teavm-wasm/teavm/lib/teavm-metaprogramming-api-0.16.0.jar
+/home/hatch/workspace/score-reader-spikes/teavm-wasm/teavm/lib/teavm-metaprogramming-impl-0.16.0.jar
+/home/hatch/workspace/score-reader-spikes/teavm-wasm/teavm/lib/teavm-platform-0.16.0.jar
+/home/hatch/workspace/score-reader-spikes/teavm-wasm/teavm-fork/phase41/format-repro/classes
