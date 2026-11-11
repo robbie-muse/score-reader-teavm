@@ -1,0 +1,82 @@
+--- a/app/src/main/java/org/audiveris/omr/image/FloodFiller.java
++++ b/app/src/main/java/org/audiveris/omr/image/FloodFiller.java
+@@ -65,20 +65,70 @@
+      * @param oldColor the color to be replaced
+      * @param newColor the color to replace with
+      */
+-    public void fill (int x,
++        public void fill (int x,
+                       int y,
+                       int oldColor,
+                       int newColor)
+     {
+-        if ((x >= 0) && (x < width) && (y >= 0) && (y < height)) {
+-            int pix = image.getRGB(x, y);
++        // TEAVM §16: iterative explicit-stack flood fill (was recursive).
++        // The recursive version overflows the Wasm call stack in HEADS
++        // template building (216 rebuild dies at Node's default 984 kB
++        // stack; §15). Same pixels, no recursion: a pixel is marked at
++        // push time, so each pixel is pushed at most once, and the filled
++        // set is exactly the 4-connected oldColor component reachable
++        // from the seed — the same set the recursive version fills.
++        if ((x < 0) || (x >= width) || (y < 0) || (y >= height)) {
++            return;
++        }
++
++        if (oldColor == newColor) {
++            return;
++        }
++
++        if (image.getRGB(x, y) != oldColor) {
++            return;
++        }
++
++        // Neighbour offsets in the recursive version's order:
++        // Left, Top, Bottom, Right.
++        final int[] dx = { -1, 0, 0, 1 };
++        final int[] dy = { 0, -1, 1, 0 };
++
++        // Explicit stack of encoded positions (pos = y * width + x),
++        // grown as needed; a plain int[] keeps this free of any
++        // collection dependency under TeaVM.
++        int[] stack = new int[256];
++        int top = 0;
++
++        image.setRGB(x, y, newColor);
++        stack[top++] = (y * width) + x;
++
++        while (top > 0) {
++            int pos = stack[--top];
++            int px = pos % width;
++            int py = pos / width;
++
++            for (int dir = 0; dir < 4; dir++) {
++                int nx = px + dx[dir];
++                int ny = py + dy[dir];
++
++                if ((nx < 0) || (nx >= width) || (ny < 0) || (ny >= height)) {
++                    continue;
++                }
++
++                if (image.getRGB(nx, ny) != oldColor) {
++                    continue;
++                }
++
++                image.setRGB(nx, ny, newColor);
++
++                if (top == stack.length) {
++                    int[] grown = new int[stack.length * 2];
++                    System.arraycopy(stack, 0, grown, 0, stack.length);
++                    stack = grown;
++                }
+ 
+-            if ((pix == oldColor) && (pix != newColor)) {
+-                image.setRGB(x, y, newColor);
+-                fill(x - 1, y, oldColor, newColor); // Left
+-                fill(x, y - 1, oldColor, newColor); // Top
+-                fill(x, y + 1, oldColor, newColor); // Bottom
+-                fill(x + 1, y, oldColor, newColor); // Right
++                stack[top++] = (ny * width) + nx;
+             }
+         }
+     }

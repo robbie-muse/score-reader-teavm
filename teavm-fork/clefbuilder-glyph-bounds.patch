@@ -1,0 +1,36 @@
+--- a/app/src/main/java/org/audiveris/omr/sheet/clef/ClefBuilder.java
++++ b/app/src/main/java/org/audiveris/omr/sheet/clef/ClefBuilder.java
+@@ -437,25 +437,16 @@
+         for (int idx = 0; idx < clefList.size(); idx++) {
+             final ClefInter inter = clefList.get(idx);
+ 
+-            // Unerased staff line chunks may shift the symbol in abscissa,
+-            // so use glyph centroid for a better positioning
+-            // For inter bounds, use font-based symbol bounds rather than glyph bounds
+-            //TODO: we could also check histogram right after clef end, looking for a low point?
+-            Rectangle clefBox = inter.getSymbolBounds(staff.getSpecificInterline());
++            // TEAVM (§18): use glyph bounds, not font-based symbol bounds.
++            // See note above (stub font geometry + degenerate centroid shift
++            // the font-based box ~400px right, breaking clefStop, header clef
++            // selection, time signatures and first-column heads).
++            Rectangle clefBox = (inter.getGlyph() != null)
++                    ? inter.getGlyph().getBounds()
++                    : inter.getSymbolBounds(staff.getSpecificInterline());
+ 
+             if (inter.getGlyph() != null) {
+-                final Shape shape = inter.getShape();
+-                final int size = MusicFont.getPointSize(sheet.getInterline());
+-                final MusicFamily family = sheet.getStub().getMusicFamily();
+-                final FontSymbol fs = shape.getFontSymbolByInterline(family, size);
+-
+-                Point symbolCentroid = fs.symbol.getCentroid(clefBox);
+-                Point glyphCentroid = inter.getGlyph().getCentroid();
+-                int dx = glyphCentroid.x - symbolCentroid.x;
+-                int dy = glyphCentroid.y - symbolCentroid.y;
+-                logger.debug("Centroid translation dx:{} dy:{}", dx, dy);
+-                clefBox.translate(dx, 0);
+-                inter.setBounds(clefBox); // Force theoretical bounds as inter bounds!
++                inter.setBounds(clefBox);
+                 sig.addVertex(inter);
+             }
+ 

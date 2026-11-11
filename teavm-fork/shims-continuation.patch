@@ -1,0 +1,107 @@
+# Shim changes made during the 2026-11-08 evening continuation of the TeaVM
+# fork work (masked failures #3027, #18066, #19489). These shims live in
+# teavm/shims/src/ (the Audiveris spike's hand-written JDK stubs), NOT in the
+# TeaVM fork source, so they are not part of teavm-classlib-fix.patch.
+# Provenance: the TimeoutException and FontFormatException hunks are exact
+# new-file diffs. The Font.java hunk is a diff against a RECONSTRUCTION of
+# the pre-fix file (the original was overwritten by build.sh; the
+# reconstruction reverses only the size/pointSize split described in
+# FORK_FIX.md §5/§8.1 and is marked as such — do not apply it blindly).
+# Apply the new files by copying them into teavm/shims/src/java/... and
+# re-running teavm/build.sh.
+diff --git a/shims/src/java/awt/Font.java b/shims/src/java/awt/Font.java
+--- a/shims/src/java/awt/Font.java	(reconstructed pre-fix)
++++ b/shims/src/java/awt/Font.java
+@@ -1,5 +1,9 @@
+ package java.awt;
+-/** Minimal java.awt.Font: metrics are stubs (no real font rasterization in TeaVM). */
++/** Minimal java.awt.Font: metrics are stubs (no real font rasterization in TeaVM).
++ * Fields mirror real JDK: {@code size} is int, {@code pointSize} is float
++ * (see FN272 follow-up #3027: the old single {@code float size} field made
++ * TeaVM emit an f32 where Audiveris passes the inherited field to an
++ * int-parameter method, and Node rejected the module). */
+ public class Font {
+     public static final int PLAIN = 0;
+     public static final int BOLD = 1;
+@@ -8,27 +12,28 @@
+     public static final int TYPE1_FONT = 1;
+     protected String name;
+     protected int style;
+-    protected float size;
++    protected int size;
++    protected float pointSize;
+     public Font(String name, int style, int size) {
+         this.name = name == null ? "Dialog" : name;
+-        this.style = style; this.size = size;
++        this.style = style; this.size = size; this.pointSize = size;
+     }
+     public Font(String name, int style, float size) {
+         this.name = name == null ? "Dialog" : name;
+-        this.style = style; this.size = size;
++        this.style = style; this.size = (int) size; this.pointSize = size;
+     }
+     public String getName() { return name; }
+     public String getFamily() { return name; }
+     public String getFontName() { return name; }
+     public int getStyle() { return style; }
+-    public int getSize() { return (int) size; }
+-    public float getSize2D() { return size; }
++    public int getSize() { return size; }
++    public float getSize2D() { return pointSize; }
+     public boolean isPlain() { return style == PLAIN; }
+     public boolean isBold() { return (style & BOLD) != 0; }
+     public boolean isItalic() { return (style & ITALIC) != 0; }
+-    public Font deriveFont(int style) { return new Font(name, style, size); }
+-    public Font deriveFont(float size) { return new Font(name, style, (int) size); }
+-    public Font deriveFont(int style, float size) { return new Font(name, style, (int) size); }
++    public Font deriveFont(int style) { return new Font(name, style, pointSize); }
++    public Font deriveFont(float size) { return new Font(name, style, size); }
++    public Font deriveFont(int style, float size) { return new Font(name, style, size); }
+     public static Font decode(String str) { return new Font("Dialog", PLAIN, 12); }
+     public static Font createFont(int fontFormat, java.io.InputStream in) {
+         return new Font("Dialog", PLAIN, 12);
+@@ -40,12 +45,12 @@
+         return new java.awt.font.FontRenderContext(null, false, false);
+     }
+     @Override public boolean equals(Object o) {
+-        if (o instanceof Font f) return name.equals(f.name) && style == f.style && size == f.size;
++        if (o instanceof Font f) return name.equals(f.name) && style == f.style && size == f.size && pointSize == f.pointSize;
+         return false;
+     }
+-    @Override public int hashCode() { return name.hashCode() * 31 + style * 7 + (int) size; }
++    @Override public int hashCode() { return name.hashCode() * 31 + style * 7 + size; }
+     @Override public String toString() { return name + " style=" + style + " size=" + size; }
+-    public Font(Font font) { this(font.name, font.style, font.size); }
++    public Font(Font font) { this(font.name, font.style, font.pointSize); }
+     public Font deriveFont(java.awt.geom.AffineTransform trans) { return this; }
+     public java.awt.font.GlyphVector createGlyphVector(java.awt.font.FontRenderContext frc, String str) { return null; }
+     public java.awt.font.GlyphVector createGlyphVector(java.awt.font.FontRenderContext frc, char[] chars) { return null; }
+diff --git a/shims/src/java/util/concurrent/TimeoutException.java b/shims/src/java/util/concurrent/TimeoutException.java
+new file mode 100644
+--- /dev/null
++++ b/shims/src/java/util/concurrent/TimeoutException.java
+@@ -0,0 +1,10 @@
++package java.util.concurrent;
++/** Minimal java.util.concurrent.TimeoutException (thrown when a blocking
++ *  operation times out). Added 2026-11-08: it was the only catch type in
++ *  the program missing from TeaVM's classpath, which made TeaVM emit an
++ *  empty root struct for it and Node reject the module at function #18066
++ *  (SheetStub.doOneStep catch dispatch, br_on_cast Throwable -> TimeoutException). */
++public class TimeoutException extends Exception {
++    public TimeoutException() { super(); }
++    public TimeoutException(String message) { super(message); }
++}
+diff --git a/shims/src/java/awt/FontFormatException.java b/shims/src/java/awt/FontFormatException.java
+new file mode 100644
+--- /dev/null
++++ b/shims/src/java/awt/FontFormatException.java
+@@ -0,0 +1,9 @@
++package java.awt;
++/** Minimal java.awt.FontFormatException (thrown when a font file is malformed).
++ *  Added 2026-11-08: it was missing from TeaVM's classpath, which made TeaVM
++ *  emit an empty root struct for it and Node reject the module at function
++ *  #19489 (OmrFont.createFont catch dispatch, br_on_cast Throwable ->
++ *  FontFormatException). Same defect class as #18066 (TimeoutException). */
++public class FontFormatException extends Exception {
++    public FontFormatException(String reason) { super(reason); }
++}

@@ -1,0 +1,107 @@
+--- a/app/src/main/java/org/audiveris/omr/image/TemplateFactory.java
++++ b/app/src/main/java/org/audiveris/omr/image/TemplateFactory.java
+@@ -120,13 +120,13 @@
+             NOTEHEAD_CIRCLE_X);
+ 
+     /** Color for foreground pixels. */
+-    private static final int FORE = Color.YELLOW.getRGB();
++    private static final int FORE = 0xFFFFFF00; // TEAVM: Color.YELLOW.getRGB()
+ 
+     /** Color for background pixels. */
+-    private static final int BACK = Color.WHITE.getRGB();
++    private static final int BACK = 0xFFFFFFFF; // TEAVM: Color.WHITE.getRGB()
+ 
+     /** Color for hole pixels. */
+-    private static final int HOLE = Color.PINK.getRGB();
++    private static final int HOLE = 0xFFFFAFAF; // TEAVM: Color.PINK.getRGB()
+ 
+     //~ Instance fields ----------------------------------------------------------------------------
+ 
+@@ -247,7 +247,7 @@
+         final Graphics2D g = img.createGraphics();
+ 
+         // Fill frame background (with side regions)
+-        g.setColor(Color.GRAY);
++        g.setColor(new Color(128, 128, 128)); // TEAVM
+         g.fillRect(0, 0, img.getWidth(), img.getHeight());
+ 
+         final AffineTransform at = AffineTransform.getScaleInstance(zoom, zoom);
+@@ -285,7 +285,7 @@
+         g.fillRect(0, 0, width, height);
+ 
+         // Paint foreground pixels
+-        g.setColor(Color.YELLOW);
++        g.setColor(new Color(255, 255, 0)); // TEAVM
+         for (PixelDistance pix : tpl.getKeyPoints()) {
+             final int d = (int) Math.rint(pix.d);
+             if (d == 0) {
+@@ -321,7 +321,7 @@
+             }
+         }
+ 
+-        g.setColor(Color.GREEN);
++        g.setColor(new Color(0, 255, 0)); // TEAVM
+ 
+         // Draw trimmed bounds
+         UIUtil.setAbsoluteStroke(g, 3f);
+@@ -725,17 +725,16 @@
+          * @param img       (input/output) the source image
+          * @param threshold the minimum alpha/color level
+          */
+-        private void binarize (BufferedImage img,
++                private void binarize (BufferedImage img,
+                                int threshold)
+         {
++            // TEAVM: no Color(int, boolean) ctor / getRGB(); work on the ARGB int directly.
+             for (int y = 0, h = img.getHeight(); y < h; y++) {
+                 for (int x = 0, w = img.getWidth(); x < w; x++) {
+-                    final Color pix = new Color(img.getRGB(x, y), true);
++                    final int argb = img.getRGB(x, y);
+ 
+-                    if (pix.getAlpha() >= threshold) {
+-                        final Color color = new Color(pix.getRGB(), false);
+-
+-                        if (color.getRed() >= threshold) {
++                    if (((argb >> 24) & 0xFF) >= threshold) {
++                        if (((argb >> 16) & 0xFF) >= threshold) {
+                             img.setRGB(x, y, BACK);
+                         } else {
+                             img.setRGB(x, y, FORE);
+@@ -767,6 +766,21 @@
+                 // Consider any isolated background pixel as a hole seed
+                 adjustHoles(img, fatBounds); // HOLE
+ 
++                // DIAG16: blank-template hypothesis check (stub font renders no glyph?)
++                {
++                    int fore16 = 0;
++                    for (int yy = 0; yy < img.getHeight(); yy++) {
++                        for (int xx = 0; xx < img.getWidth(); xx++) {
++                            if (img.getRGB(xx, yy) == FORE) {
++                                fore16++;
++                            }
++                        }
++                    }
++                    System.out.println("DIAG16 buildDistances shape=" + shape + " w=" + img.getWidth()
++                            + " h=" + img.getHeight() + " fore=" + fore16
++                            + " rgb00=" + Integer.toHexString(img.getRGB(0, 0)));
++                }
++
+                 // Safety check: the upper left pixel cannot be a hole
+                 if (img.getRGB(0, 0) == HOLE) {
+                     return null;
+@@ -937,6 +951,15 @@
+             } else {
+                 // Holes detection failed. Process symbol at higher resolution
+                 final int larger = constants.holeLargerRatio.getValue();
++
++                // TEAVM (§16): cap the rebuild loop (see above); blank stub-font
++                // templates would otherwise double forever. Attempts at ratios
++                // 1, 2, 4, 8, then give up with an empty key-point list.
++                if (ratio >= 8) {
++                    logger.warn("No template for {} at any resolution, giving up", shape);
++                    return new ArrayList<>();
++                }
++
+                 logger.info("Rebuilding {} template at resolution {}", shape, larger * ps);
+                 return processSymbol(larger * ratio);
+             }
