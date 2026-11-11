@@ -132,7 +132,13 @@ def scan_statement(text, start):
                 depth += 1
             elif c == ')':
                 depth -= 1
-            elif c == ';' and depth == 0:
+            # §45: '<=' not '==': a print can be the last expression of an
+            # enclosing call (e.g. forEach(e -> System.out.printf(...)); in
+            # AbstractPitchedInter), where an extra ')' precedes the ';'.
+            # That ';' still terminates the statement. For all previously
+            # stripped files depth never went negative at a ';', so this
+            # changes nothing there.
+            elif c == ';' and depth <= 0:
                 return j + 1
         j += 1
     raise ValueError("unterminated statement at offset %d" % start)

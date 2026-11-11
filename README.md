@@ -18,19 +18,21 @@ end in Node (LOAD → PAGE → `.mxl`, lyrics included via a tesseract.js
 bridge) and matches desktop Audiveris on the control pages. It has
 **not** run in a real browser yet (no Chrome run — that is the next
 milestone), and it is not wired into the app's `reader.js`. See
-[Gaps](#gaps) and `teavm-fork/FORK_FIX.md` §44 for what is still open.
+[Gaps](#gaps) and `teavm-fork/FORK_FIX.md` §45 for what is still open.
 CheerpJ 5 remains the only working option for the shipped app.
 
-## What is verified (full-out94, the reference build)
+## What is verified (full-out110, the reference build)
 
-The reference build is **full-out94**: 0 problems, 3,055 classes,
-28,726 methods, `classes.wasm` 14,235,637 bytes, DIAG prints stripped.
+The reference build is **full-out110**: 0 problems, 3,055 classes,
+28,726 methods, `classes.wasm` 14,239,078 bytes, DIAG prints stripped.
 (The built `.wasm` is *not* in this repo — build outputs are excluded;
 rebuild from source below.)
 
 60-page validation against desktop Audiveris 5.11, no-OCR
-(`open-music/FULLOUT92_RESULTS.md` — the full-out92 run; full-out94
-changes nothing on the validated pages except the Mozart fix, §44.1):
+(`open-music/FULLOUT92_RESULTS.md` — the full-out92 run; full-out110
+changes nothing on the validated pages except the Mozart fix (§44.1)
+and the flat-key fix (§45: Widmung 291 pitched = desktop, Wiegenlied
+155 = desktop; controls byte-identical to full-out94)):
 
 - **Multi-page (37 pp: BWV 227, Hallelujah, Gute Nacht): 37/37
   complete, zero crashes, 31/37 identical note counts.** Whole-piece
@@ -120,7 +122,7 @@ Notes:
 ```sh
 cd teavm-fork
 # No-OCR control run (grey input + {width,height} meta JSON):
-node run-fullout-noocr.mjs full-out94 ../teavm/hymn-satb.gray ../teavm/hymn-satb.json out.musicxml
+node run-fullout-noocr.mjs full-out110 ../teavm/hymn-satb.gray ../teavm/hymn-satb.json out.musicxml
 # Expected: exit 0, 44,105 B, 128 notes, 2 parts, 16 measures.
 ```
 
@@ -151,7 +153,8 @@ CC BY-NC-SA 4.0, CC BY-NC, CPDL); the four Bach chorales carry a
 are testing-only, not for commercial redistribution.
 
 The validation report is `open-music/FULLOUT92_RESULTS.md` (full-out92
-run; the full-out94 fix round is `teavm-fork/FORK_FIX.md` §44). Runners
+run; the full-out94 fix round is `teavm-fork/FORK_FIX.md` §44, the
+full-out110 flat-key fix is §45). Runners
 and scorers live in `open-music/` (`run92_part1.py`,
 `multi-page/run_wasm92.py`, `score92.py`) — they are not in this repo
 yet; the `.gray` + `.json` control inputs that *are* here
@@ -163,10 +166,20 @@ which are the pages every § in `FORK_FIX.md` is verified against.
 - **No real-browser Chrome run yet** — everything is Node v24.22.1.
   The browser has a fixed ~1 MB V8 stack and tighter memory limits;
   the Node `--stack-size` knob does not exist there.
-- **Flat-key signatures lost on Wasm — 8/8 flat-key pages, 0/7
-  sharp-key pages** (§44.2/§44.3). Widmung −122 pitched, Wiegenlied
-  pickup misnumbered — both localised to `KeyBuilder`, next
-  diagnostic DIAG51 named, not started.
+- **Flat-key signatures — FIXED (§45).** The §19 `BravuraMetrics`
+  table lacked codepoint 0xe010 (`LINE_CODE`), so the shim `TextLayout`
+  fell back to stub bounds and `populatePitchOffsets` computed
+  `lineHeight` 200.0 instead of 6.40625, collapsing `pitchHeight`
+  25.0 → 0.80 and inflating every pitch offset ~31×; flat alters
+  graded 0 and no key was ever created. Fix is shim data only
+  (0xe010 metrics dumped on desktop Java,
+  `teavm-fork/phase55/LineCodeDump.java`; table 157 → 158
+  codepoints; no Audiveris code changed). All 8 flat-key pages
+  recovered: Widmung 291 pitched = desktop (was 169), Wiegenlied
+  155 = desktop with pickup m0 restored and the phantom G♭4 gone,
+  BWV 397 and Après un rêve exact, Erlkönig/Wolf/Sanctus/Agnus keys
+  exact with pre-existing pitched gaps unchanged. Controls
+  byte-identical to full-out94.
 - **BWV 227 p14 +2** (§44.4): a §40 × §42 interaction (rint fix flips
   HEADS template matching, §42 supports let the flipped heads
   survive); no contained fix — reverting either re-breaks §40 or §42.
@@ -215,8 +228,8 @@ which are the pages every § in `FORK_FIX.md` is verified against.
 - **Single-threaded inline executor.** `OmrExecutors` pools are
   no-arg factories; `cpuCount` is 1. No true parallelism under Wasm.
 - **DIAG prints stripped in the clean build** (ROUND 49,
-  `strip_diag.py`); full-out94 is the reference. Diagnostic builds
-  (full-out93, 95–104) are not in this repo.
+  `strip_diag.py`); full-out110 is the reference. Diagnostic builds
+  (full-out93, 95–109) are not in this repo.
 
 ## Licensing
 

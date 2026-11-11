@@ -6,7 +6,7 @@ font) and emits two generated classes — do not edit by hand:
 
 1. ../../teavm/shims/src/java/awt/font/BravuraMetrics.java
    Per-codepoint unit metrics (advance and bounds, per point size) for the
-   157 Bravura code points the pipeline uses. The shim TextLayout consults
+   158 Bravura code points the pipeline uses. The shim TextLayout consults
    this table: when the font name is "Bravura" and every code point of the
    text is known, getBounds()/getAdvance() compose the real Bravura
    geometry (verified exact on desktop: composition of multi-code strings

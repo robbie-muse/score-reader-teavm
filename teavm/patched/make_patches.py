@@ -5448,6 +5448,460 @@ for _old in sorted(OUT.rglob("*.java")):
         print(f"pruning stale patched file: {_rel}")
         _old.unlink()
 
+# ============================================================ ROUND 53 (§45: DIAG51 flat-key KeyBuilder)
+# Widmung (-4 flats) and Wiegenlied (-3 flats) lose the key signature on
+# Wasm; 8/8 flat-key pages lose it, 7/7 sharp-key pages keep it (§44.3.6).
+# The Wasm header projection DOES see the flat ink (DIAG50 timeSpaces are
+# the white gaps between the flat glyphs), so the divergence is in
+# KeyBuilder's own projection peaks or its peak-pattern logic, not the
+# pixels it reads. DIAG51 prints the full ShapeBuilder.process chain per
+# staff and shape (FLAT and SHARP builders both run): the hilo peak list,
+# peaks after each stage (browse/merge/purge), the inferSignature inputs
+# (meanShort vs minFlatDelta/maxSharpDelta, heading), the refineSignature
+# outcome, the checkPeakDeltas dxs/mean/cutOver, computeStarts, and the
+# final keyInter. Rejection paths (createPeak invalid / not stem-like /
+# first-peak too late, checkSpace "no key signature", purgeLightPeaks
+# discards, computeStarts heading) are printed at the point of rejection
+# so a truncated chain names its own gate. Print-only. Tier-1 strip
+# removes the prints (no scaffolding added). KeyBuilder was patched by
+# ROUND 38 (DIAG39), so read_out, not copy_src (per §39.1).
+# ---------------------------------------------------------------------------
+text = read_out("org/audiveris/omr/sheet/key/KeyBuilder.java")
+text = sub(text, """        Collections.sort(hiloPeaks, Range.byMain);
+        logger.debug("Staff#{} hilos: {}", getId(), hiloPeaks);
+""", """        Collections.sort(hiloPeaks, Range.byMain);
+        logger.debug("Staff#{} hilos: {}", getId(), hiloPeaks);
+
+        // DIAG51 (§45): hilo peak list per staff. Print-only.
+        System.out.println("DIAG51 hilos staff=" + getId() + " inHeader=" + inHeader + " " + hiloPeaks);
+""")
+text = sub(text, """            browseArea(hiloPeaks); // Pick up raw peaks before end of key area
+
+            refineAreaStart();
+
+            mergePeaks(); // Merge close peaks
+
+            purgeLightPeaks(); // Discard some light peaks
+
+            int signature = inferSignature(); // Infer signature from peaks
+
+            signature = refineSignature(signature); // Check trailing and regular peaks spacing
+
+            List<Integer> starts = computeStarts(signature); // Compute start for each key item
+""", """            browseArea(hiloPeaks); // Pick up raw peaks before end of key area
+
+            // DIAG51 (§45): peaks after browse + range. Print-only.
+            System.out.println("DIAG51 browse staff=" + getId() + " shape=" + keyShape
+                    + " peaks=" + peaks + " range=" + range.getStart() + "-" + range.getStop());
+
+            refineAreaStart();
+
+            mergePeaks(); // Merge close peaks
+
+            // DIAG51 (§45): peaks after merge. Print-only.
+            System.out.println("DIAG51 merged staff=" + getId() + " shape=" + keyShape
+                    + " peaks=" + peaks);
+
+            purgeLightPeaks(); // Discard some light peaks
+
+            // DIAG51 (§45): peaks after light-purge. Print-only.
+            System.out.println("DIAG51 purged staff=" + getId() + " shape=" + keyShape
+                    + " peaks=" + peaks);
+
+            int signature = inferSignature(); // Infer signature from peaks
+
+            // DIAG51 (§45): inferred signature. Print-only.
+            System.out.println("DIAG51 infer staff=" + getId() + " shape=" + keyShape
+                    + " sig=" + signature + " peaks=" + peaks);
+
+            signature = refineSignature(signature); // Check trailing and regular peaks spacing
+
+            // DIAG51 (§45): refined signature. Print-only.
+            System.out.println("DIAG51 refine staff=" + getId() + " shape=" + keyShape
+                    + " sig=" + signature + " peaks=" + peaks + " range=" + range.getStart()
+                    + "-" + range.getStop());
+
+            List<Integer> starts = computeStarts(signature); // Compute start for each key item
+
+            // DIAG51 (§45): slice starts (empty = no key). Print-only.
+            System.out.println("DIAG51 starts staff=" + getId() + " shape=" + keyShape
+                    + " starts=" + starts);
+""")
+text = sub(text, """                final double meanShort = sum / shorts;
+""", """                final double meanShort = sum / shorts;
+
+                // DIAG51 (§45): inferSignature decision inputs. Print-only.
+                System.out.println("DIAG51 inferMean staff=" + getId() + " shape=" + keyShape
+                        + " peakCount=" + peakCount + " meanDx=" + meanDx + " meanShort=" + meanShort
+                        + " heading=" + heading + " minFlatDelta=" + params.minFlatDelta
+                        + " maxSharpDelta=" + params.maxSharpDelta
+                        + " maxFlatHeading=" + params.maxFlatHeading);
+""")
+text = sub(text, """            logger.debug(
+                    "Staff#{} peak dxs:{} mean:{} maxPeakDx:{} cutOver:{}",
+                    getId(),
+                    dxs,
+                    meanDx,
+                    params.maxPeakDx,
+                    max);
+""", """            logger.debug(
+                    "Staff#{} peak dxs:{} mean:{} maxPeakDx:{} cutOver:{}",
+                    getId(),
+                    dxs,
+                    meanDx,
+                    params.maxPeakDx,
+                    max);
+
+            // DIAG51 (§45): mirror the dxs/cutOver decision. Print-only.
+            System.out.println("DIAG51 dxs staff=" + getId() + " shape=" + keyShape
+                    + " dxs=" + Arrays.toString(dxs) + " mean=" + meanDx
+                    + " maxPeakDx=" + params.maxPeakDx + " cutOver=" + max);
+""")
+text = sub(text, """                if (dx < minDx) {
+                    logger.debug("Staff#{} light {}", getId(), peak);
+                    it.remove();
+                }
+""", """                if (dx < minDx) {
+                    logger.debug("Staff#{} light {}", getId(), peak);
+
+                    // DIAG51 (§45): light-peak discard. Print-only.
+                    System.out.println("DIAG51 light staff=" + getId() + " shape=" + keyShape
+                            + " peak=" + peak + " area=" + peak.area + " quorum=" + quorum
+                            + " dx=" + dx + " minDx=" + minDx);
+                    it.remove();
+                }
+""")
+text = sub(text, """            peaks.retainAll(sortedPeaks);
+""", """            // DIAG51 (§45): purge quorum. Print-only.
+            System.out.println("DIAG51 purgeQuorum staff=" + getId() + " shape=" + keyShape
+                    + " quorum=" + quorum + " peakCount=" + peakCount);
+
+            peaks.retainAll(sortedPeaks);
+""")
+text = sub(text, """            if ((height > params.maxPeakCumul) || (peak.getWidth() > params.maxPeakWidth)) {
+                logger.debug("Invalid height or width for peak");
+""", """            if ((height > params.maxPeakCumul) || (peak.getWidth() > params.maxPeakWidth)) {
+                logger.debug("Invalid height or width for peak");
+
+                // DIAG51 (§45): peak rejected on height/width. Print-only.
+                System.out.println("DIAG51 badPeak staff=" + getId() + " shape=" + keyShape
+                        + " peak=" + peak + " height=" + height + " maxPeakCumul="
+                        + params.maxPeakCumul + " maxPeakWidth=" + params.maxPeakWidth);
+""")
+text = sub(text, """                    if (dx > params.maxPeakDx) {
+                        // A large dx indicates we are beyond end of key signature
+                        logger.debug("Too large delta since previous peak");
+""", """                    if (dx > params.maxPeakDx) {
+                        // A large dx indicates we are beyond end of key signature
+                        logger.debug("Too large delta since previous peak");
+
+                        // DIAG51 (§45): peak rejected on delta. Print-only.
+                        System.out.println("DIAG51 bigDx staff=" + getId() + " shape=" + keyShape
+                                + " peak=" + peak + " dx=" + dx + " maxPeakDx=" + params.maxPeakDx);
+""")
+text = sub(text, """                    if (offset > params.maxFirstPeakOffset) {
+                        logger.debug("First peak arrives too late");
+""", """                    if (offset > params.maxFirstPeakOffset) {
+                        logger.debug("First peak arrives too late");
+
+                        // DIAG51 (§45): first peak rejected on offset. Print-only.
+                        System.out.println("DIAG51 lateFirst staff=" + getId() + " shape=" + keyShape
+                                + " peak=" + peak + " offset=" + offset + " maxFirstPeakOffset="
+                                + params.maxFirstPeakOffset);
+""")
+text = sub(text, """            if (!stem) {
+                logger.debug("Staff#{} {} no stem", getId(), peak);
+            }
+""", """            if (!stem) {
+                logger.debug("Staff#{} {} no stem", getId(), peak);
+
+                // DIAG51 (§45): peak ignored, not stem-like. Print-only.
+                System.out.println("DIAG51 noStem staff=" + getId() + " shape=" + keyShape
+                        + " peak=" + peak);
+            }
+""")
+text = sub(text, """                if (spaceWidth > params.maxFirstSpaceWidth) {
+                    // No key signature!
+                    logger.debug("Staff#{} no key signature.", getId());
+                    keepOn = false;
+""", """                if (spaceWidth > params.maxFirstSpaceWidth) {
+                    // No key signature!
+                    logger.debug("Staff#{} no key signature.", getId());
+
+                    // DIAG51 (§45): first space too wide, no key. Print-only.
+                    System.out.println("DIAG51 noKey staff=" + getId() + " shape=" + keyShape
+                            + " space=" + spaceStart + "-" + spaceStop + " width=" + spaceWidth
+                            + " maxFirstSpaceWidth=" + params.maxFirstSpaceWidth);
+                    keepOn = false;
+""")
+text = sub(text, """            } else if (spaceWidth > params.maxInnerSpace) {
+                range.shrinkStop(spaceStart - 1);
+                keepOn = false;
+            }
+""", """            } else if (spaceWidth > params.maxInnerSpace) {
+                // DIAG51 (§45): inner space too wide, key ends here. Print-only.
+                System.out.println("DIAG51 wideSpace staff=" + getId() + " shape=" + keyShape
+                        + " space=" + spaceStart + "-" + spaceStop + " width=" + spaceWidth
+                        + " maxInnerSpace=" + params.maxInnerSpace);
+                range.shrinkStop(spaceStart - 1);
+                keepOn = false;
+            }
+""")
+text = sub(text, """                if (trail < params.minFlatTrail) {
+                    logger.debug("Removing too narrow flat");
+""", """                if (trail < params.minFlatTrail) {
+                    logger.debug("Removing too narrow flat");
+
+                    // DIAG51 (§45): last flat removed, trail too narrow. Print-only.
+                    System.out.println("DIAG51 narrowFlat staff=" + getId() + " shape=" + keyShape
+                            + " trail=" + trail + " minFlatTrail=" + params.minFlatTrail);
+""")
+text = sub(text, """                } else {
+                    logger.debug("Too large heading {} before first flat peak", flatHeading);
+                }
+""", """                } else {
+                    logger.debug("Too large heading {} before first flat peak", flatHeading);
+
+                    // DIAG51 (§45): flat heading too large, no starts. Print-only.
+                    System.out.println("DIAG51 bigHeading staff=" + getId() + " shape=" + keyShape
+                            + " flatHeading=" + flatHeading + " maxFlatHeading="
+                            + params.maxFlatHeading);
+                }
+""")
+text = sub(text, """                staff.getHeader().key = keyInter;
+                roi.freezeAlters();
+""", """                staff.getHeader().key = keyInter;
+                roi.freezeAlters();
+
+                // DIAG51 (§45): final key outcome for this staff/shape. Print-only.
+                System.out.println("DIAG51 final staff=" + getId() + " shape=" + keyShape
+                        + " keyInter=" + ((keyInter == null) ? "null" : keyInter.getFifths())
+                        + " roiSize=" + roi.size());
+""")
+write("org/audiveris/omr/sheet/key/KeyBuilder.java", text)
+print("  KeyBuilder DIAG51 (§45)")
+
+# ============================================================ ROUND 54 (§45: DIAG51b — checkWithClefs gate)
+# DIAG51 (ROUND 53) proved the whole ShapeBuilder.process chain is
+# identical desktop vs Wasm (hilos, peaks, infer, dxs, starts) and the
+# ONLY difference is the DIAG51 final line: desktop emits it (one per
+# system, FLAT, keyInter=-4/-3), Wasm emits zero. So getBestKeyInter()
+# returns null on Wasm: both ShapeBuilders' keyInter are null. keyInter
+# is only created in checkWithClefs() (after a compatible clef with
+# alterCount > 0), so the gate is there or in the alter retrieval just
+# before it. DIAG51b prints: per-slice alter state after
+# retrieveComponents, the competing clefs, per-clef alterCount, the
+# computePitchedGrades dPitch gate (one out-of-tolerance alter returns 0
+# for the whole key), the checkWithClefs outcome, and the createKeyInter
+# alters count. Same DIAG51 number so TEAVM_KEEP_DIAG=51 keeps them.
+# Print-only. KeyBuilder was patched by ROUNDs 38/53, so read_out.
+# ---------------------------------------------------------------------------
+text = read_out("org/audiveris/omr/sheet/key/KeyBuilder.java")
+text = sub(text, """                extractor.retrieveComponents(range, roi, peaks, keyShape);
+""", """                extractor.retrieveComponents(range, roi, peaks, keyShape);
+
+                // DIAG51 (§45): per-slice alter state after component retrieval. Print-only.
+                {
+                    StringBuilder sb51 = new StringBuilder();
+                    sb51.append("DIAG51 alters staff=").append(getId()).append(" shape=").append(keyShape);
+                    for (KeySlice slice51 : roi) {
+                        KeyAlterInter alt51 = slice51.getAlter();
+                        sb51.append(" [slice#").append(slice51.getId());
+                        if (alt51 == null) {
+                            sb51.append(" alter=null");
+                        } else {
+                            sb51.append(" grade=").append(String.format("%.3f", alt51.getGrade()))
+                                    .append(" pitch=").append(String.format("%.1f", alt51.getMeasuredPitch()));
+                        }
+                        sb51.append("]");
+                    }
+                    System.out.println(sb51.toString());
+                }
+""")
+text = sub(text, """                clefs.addAll(staff.getCompetingClefs(starts.get(0)));
+""", """                clefs.addAll(staff.getCompetingClefs(starts.get(0)));
+
+                // DIAG51 (§45): competing clefs. Print-only.
+                {
+                    StringBuilder sb51 = new StringBuilder();
+                    sb51.append("DIAG51 clefs staff=").append(getId()).append(" shape=").append(keyShape)
+                            .append(" n=").append(clefs.size());
+                    for (ClefInter c51 : clefs) {
+                        sb51.append(" [").append(c51.getKind()).append(" grade=")
+                                .append(String.format("%.3f", c51.getGrade())).append("]");
+                    }
+                    System.out.println(sb51.toString());
+                }
+""")
+text = sub(text, """                    final double[] pitchedGrades = new double[roi.size()];
+                    final int alterCount = computePitchedGrades(clefKind, pitchedGrades);
+""", """                    final double[] pitchedGrades = new double[roi.size()];
+                    final int alterCount = computePitchedGrades(clefKind, pitchedGrades);
+
+                    // DIAG51 (§45): per-clef pitched-grade outcome. Print-only.
+                    System.out.println("DIAG51 pitched staff=" + getId() + " shape=" + keyShape
+                            + " clef=" + clefKind + " alterCount=" + alterCount
+                            + " grades=" + Arrays.toString(pitchedGrades));
+""")
+text = sub(text, """                    if (dPitch > maxDeltaPitch) {
+                        logger.debug(
+                                "Staff#{} slice#{} invalid {} pitch {} vs {} for {}",
+""", """                    if (dPitch > maxDeltaPitch) {
+                        // DIAG51 (§45): one out-of-tolerance alter zeroes the key. Print-only.
+                        System.out.println("DIAG51 badPitch staff=" + getId() + " shape=" + keyShape
+                                + " slice#" + slice.getId() + " alterPitch=" + alterPitch
+                                + " expected=" + clefPitches[i] + " dPitch=" + dPitch
+                                + " maxDeltaPitch=" + maxDeltaPitch);
+                        logger.debug(
+                                "Staff#{} slice#{} invalid {} pitch {} vs {} for {}",
+""")
+text = sub(text, """            if ((bestCompatibleClef == null) || (bestCompatibleClef != bestClef)) {
+                roi.stuffSlicesFrom(0);
+
+                return false;
+            } else {
+                return true;
+            }
+""", """            // DIAG51 (§45): checkWithClefs outcome. Print-only.
+            System.out.println("DIAG51 checkClefs staff=" + getId() + " shape=" + keyShape
+                    + " bestCompat=" + ((bestCompatibleClef == null) ? "null" : bestCompatibleClef.getKind())
+                    + " best=" + ((bestClef == null) ? "null" : bestClef.getKind())
+                    + " keyInter=" + ((keyInter == null) ? "null" : keyInter.getFifths()));
+
+            if ((bestCompatibleClef == null) || (bestCompatibleClef != bestClef)) {
+                roi.stuffSlicesFrom(0);
+
+                return false;
+            } else {
+                return true;
+            }
+""")
+text = sub(text, """            if (alters.isEmpty()) {
+                return;
+            }
+""", """            // DIAG51 (§45): createKeyInter gate. Print-only.
+            System.out.println("DIAG51 createKey staff=" + getId() + " shape=" + keyShape
+                    + " alters=" + alters.size() + " roiSize=" + roi.size());
+
+            if (alters.isEmpty()) {
+                return;
+            }
+""")
+write("org/audiveris/omr/sheet/key/KeyBuilder.java", text)
+print("  KeyBuilder DIAG51b (§45)")
+
+# ============================================================ ROUND 55 (§45: DIAG51c — flat pitch components)
+# DIAG51b localised the loss exactly: every flat alter's measured pitch
+# is +16.0 on Wasm (Widmung staff 1: desktop -0.1/-3.1/0.9/-2.1, Wasm
+# 15.9/12.8/16.9/13.9; grades identical), so computePitchedGrades returns
+# 0 on the first slice (dPitch ~15.9 > maxDeltaPitch 2.0/1.5), no
+# compatible clef, no keyInter, no finalizeKey. Sharps work, so
+# staff.pitchPositionOf itself is correct; the flat-only inputs are
+# flatMassPitchOffset (Constant.Double 0.65) and getAreaPitchOffset(FLAT)
+# (from populatePitchOffsets font-layout metrics). DIAG51c prints both:
+# the populatePitchOffsets inputs (staffHeight/lineHeight/pitchHeight and
+# the FLAT rect/offset) and the computePitch components per alter
+# (centroid, center, raw pitchPositionOf values, both offsets, massPitch,
+# geoPitch, mix), plus the sharp-path massPitch as a control. Print-only.
+# Two NEW patched files (copy_src; neither was patched before).
+# ---------------------------------------------------------------------------
+text = copy_src("org/audiveris/omr/sig/inter/AbstractPitchedInter.java")
+text = sub(text, """        // Retrieve pitch height from 5-line and 1-line symbols
+        final double staffHeight = font.layout(MusicFont.getString(BravuraSymbols.STAFF_CODE))
+                .getBounds().getHeight();
+        final double lineHeight = font.layout(MusicFont.getString(BravuraSymbols.LINE_CODE))
+                .getBounds().getHeight();
+        final double pitchHeight = (staffHeight - lineHeight) / 8; // 4 interlines = 8 pitches
+""", """        // Retrieve pitch height from 5-line and 1-line symbols
+        final double staffHeight = font.layout(MusicFont.getString(BravuraSymbols.STAFF_CODE))
+                .getBounds().getHeight();
+        final double lineHeight = font.layout(MusicFont.getString(BravuraSymbols.LINE_CODE))
+                .getBounds().getHeight();
+        final double pitchHeight = (staffHeight - lineHeight) / 8; // 4 interlines = 8 pitches
+
+        // DIAG51 (§45): pitch-offset scale inputs. Print-only.
+        System.out.println("DIAG51 pitchScale staffHeight=" + staffHeight + " lineHeight=" + lineHeight
+                + " pitchHeight=" + pitchHeight);
+""")
+text = sub(text, """                .forEach(s -> {
+                    final TextLayout layout = font.layoutShapeByCode(s);
+                    final Rectangle2D rect = layout.getBounds();
+                    final double offset = (-rect.getY() - rect.getHeight() / 2) / pitchHeight;
+                    pitchOffsets.put(s, offset);
+                });
+""", """                .forEach(s -> {
+                    final TextLayout layout = font.layoutShapeByCode(s);
+                    final Rectangle2D rect = layout.getBounds();
+                    final double offset = (-rect.getY() - rect.getHeight() / 2) / pitchHeight;
+
+                    // DIAG51 (§45): per-shape pitch offset. Print-only.
+                    System.out.println("DIAG51 pitchOffset shape=" + s + " rect=" + rect
+                            + " offset=" + offset);
+                    pitchOffsets.put(s, offset);
+                });
+""")
+write("org/audiveris/omr/sig/inter/AbstractPitchedInter.java", text)
+print("  AbstractPitchedInter DIAG51c (§45)")
+
+text = copy_src("org/audiveris/omr/sig/inter/AlterInter.java")
+text = sub(text, """            // Average value of both heuristics
+            double mix = 0.5 * (massPitch + geoPitch);
+""", """            // Average value of both heuristics
+            double mix = 0.5 * (massPitch + geoPitch);
+
+            // DIAG51 (§45): flat pitch components. Print-only.
+            System.out.println("DIAG51 flatPitch glyph=" + glyph.getId() + " shape=" + shape
+                    + " centroid=" + centroid + " center=" + center
+                    + " ppCentroid=" + staff.pitchPositionOf(centroid)
+                    + " flatOffset=" + constants.flatMassPitchOffset.getValue()
+                    + " massPitch=" + massPitch
+                    + " ppCenter=" + staff.pitchPositionOf(center)
+                    + " areaOffset=" + getAreaPitchOffset(Shape.FLAT)
+                    + " geoPitch=" + geoPitch + " mix=" + mix);
+""")
+text = sub(text, """        } else {
+            return new Pitches((int) Math.rint(massPitch), massPitch);
+        }
+""", """        } else {
+            // DIAG51 (§45): non-flat pitch control. Print-only.
+            System.out.println("DIAG51 sharpPitch glyph=" + glyph.getId() + " shape=" + shape
+                    + " centroid=" + centroid + " massPitch=" + massPitch);
+            return new Pitches((int) Math.rint(massPitch), massPitch);
+        }
+""")
+write("org/audiveris/omr/sig/inter/AlterInter.java", text)
+print("  AlterInter DIAG51c (§45)")
+
+# ============================================================ ROUND 56 (§45: DIAG51 print NPE fix)
+# The DIAG51 browse/refine prints (ROUND 53) call range.getStart()
+# unconditionally. StaffHeader.Range.getStart() auto-unboxes the
+# nullable Integer start — null when no peaks were found (empty hilos),
+# so the print itself throws NPE. Found on the two Fauré organ pages
+# (23 staves, 1 system): staff 1 has empty hilos, Wasm died with
+# "dereferencing a null pointer" right after the hilos print, and the
+# desktop harness died identically (NPE at StaffHeader.java:237 via
+# KeyBuilder.java:2247) — proving it is the diagnostic print, not a
+# TeaVM defect and not the BravuraMetrics fix. Stock code never calls
+# getStart() on an unpopulated range, so the fix is print-only:
+# guard with hasStart(). KeyBuilder was patched by ROUND 53, so
+# read_out, not copy_src (per §39.1).
+# ---------------------------------------------------------------------------
+text = read_out("org/audiveris/omr/sheet/key/KeyBuilder.java")
+text = sub(text, """            System.out.println("DIAG51 browse staff=" + getId() + " shape=" + keyShape
+                    + " peaks=" + peaks + " range=" + range.getStart() + "-" + range.getStop());""",
+"""            System.out.println("DIAG51 browse staff=" + getId() + " shape=" + keyShape
+                    + " peaks=" + peaks + " range=" + (range.hasStart() ? range.getStart() : -1)
+                    + "-" + range.getStop());""")
+text = sub(text, """            System.out.println("DIAG51 refine staff=" + getId() + " shape=" + keyShape
+                    + " sig=" + signature + " peaks=" + peaks + " range=" + range.getStart()
+                    + "-" + range.getStop());""",
+"""            System.out.println("DIAG51 refine staff=" + getId() + " shape=" + keyShape
+                    + " sig=" + signature + " peaks=" + peaks + " range="
+                    + (range.hasStart() ? range.getStart() : -1)
+                    + "-" + range.getStop());""")
+write("org/audiveris/omr/sheet/key/KeyBuilder.java", text)
+print("  KeyBuilder DIAG51 null-safe range prints (§45)")
+
 # ============================================================ ROUND 49 (§43: clean build)
 # Strip ALL DIAG prints (DIAG14 through DIAG48) from the freshly
 # generated patched sources. The DIAG prints were left in deliberately

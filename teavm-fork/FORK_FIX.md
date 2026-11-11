@@ -3,7 +3,7 @@
 Date: 2026-11-08. TeaVM 0.16.0, Node v24.22.1, Java 25 (jdk-25.0.5+8),
 Audiveris 5.11, headless entry point `teavm.TeavmMain`.
 
-## Verdict: DONE at §44 — full-out92 validation fix round: §44.1 Mozart Kyrie export trap FIXED (MxlWriter processKey null-fifths guard; page exports 435 notes / 408 pitched; full-out94 is the new current clean build, 0 problems, 3,055 classes, 28,726 methods); §44.2 Widmung −122 localised to KeyBuilder (missing flat key signature → wrong 3/4 → 128 un-timed chords; also 107/169 shared notes have the wrong alter) — verdict (c), next DIAG51; §44.3 Wiegenlied pickup numbering localised to the same missing flat key signature (MeasureFixer.isPickup sees expected=null; plus a phantom NOTEHEAD_VOID head from the unclaimed time-signature '4') — verdict (c), DIAG51 is the shared next diagnostic; bigger pattern: 8/8 flat-key pages lose the key on Wasm, 7/7 sharp-key pages keep it; §44.4 BWV p14 +2 is a §40 × §42 interaction (rint fix flips HEADS template matching, §42 supports let the flipped heads survive; p13's +1 flip is the same cause; 2×2 toggle proves it; no contained fix — reverting either re-breaks §40 or §42) — verdict (c), next DIAG53. Items 5–8 from the validation report (Lindenbaum batch-vs-harness gap, Beethoven typeset p165, StackRhythm wobbles, Beethoven p229 wall time) still open and do NOT block the PR. Still open: BrowserOCR follow-up, photometric recovery, real-browser Chrome run, upstream filings (#272, #21244, §11, §19 TColor, §27 hypot, §33 retainAll, §35 TFormatter, §40 rint/round). CheerpJ 5 remains the only working option.
+## Verdict: DONE at §45 — flat-key loss FIXED: the §19 BravuraMetrics table lacked LINE_CODE 0xe010, so the shim TextLayout fell back to stub bounds (height = font size) and populatePitchOffsets computed lineHeight 200.0 instead of 6.40625, collapsing pitchHeight 25.0 → 0.80 and inflating every pitch offset ~31× (flat alters shifted +15.97, checkWithClefs graded 0, no key ever created); sharp keys survived because they use only massPitch. Fix is shim data only (0xe010 metrics dumped on desktop Java, table 157 → 158 codepoints; no Audiveris code changed). All 8 flat-key pages recovered: Widmung 291 pitched = desktop (was 169), Wiegenlied 155 = desktop with pickup m0 restored and the phantom G♭4 gone (was 156), BWV 397 and Après un rêve exact, Erlkönig/Wolf/Sanctus/Agnus keys exact with pre-existing pitched gaps unchanged. A second, self-inflicted bug surfaced en route — the DIAG51 browse print NPE'd on empty hilos (StaffHeader.Range.getStart auto-unboxes null start) — fixed print-only in ROUND 56 (hasStart guard), proven by the desktop harness dying identically. New current clean build full-out110 (0 problems, 3,055 classes, 28,726 methods); controls byte-identical to full-out94. §44.1 Mozart Kyrie export trap FIXED (MxlWriter processKey null-fifths guard; page exports 435 notes / 408 pitched; full-out94 was the previous clean build); §44.4 BWV p14 +2 is a §40 × §42 interaction (rint fix flips HEADS template matching, §42 supports let the flipped heads survive; p13's +1 flip is the same cause; 2×2 toggle proves it; no contained fix — reverting either re-breaks §40 or §42) — verdict (c), next DIAG53. Items 5–8 from the validation report (Lindenbaum batch-vs-harness gap, Beethoven typeset p165, StackRhythm wobbles, Beethoven p229 wall time) still open and do NOT block the PR. Still open: BrowserOCR follow-up, photometric recovery, real-browser Chrome run, upstream filings (#272, #21244, §11, §19 TColor, §27 hypot, §33 retainAll, §35 TFormatter, §40 rint/round). CheerpJ 5 remains the only working option.
 
 - The #272 defect is **fixed**: the minimal repro now loads in Node and runs
   with correct results, and the full TeavmMain module compiles with
@@ -11309,3 +11309,214 @@ was cut. Close-out verified:
   `teavm-main-jars-rintrevert.txt` (classlib swap only, Spike
   classpath) and `teavm/policy/src/teavm/TeavmReflectionPolicy.java`
   (two §42 entries commented out for toggle 2, restored after).
+
+## §45 — DIAG51: flat-key loss FIXED — missing Bravura LINE_CODE metrics in the shim table; contained shim-data fix, all 8 flat-key pages recovered — verdict (a) (2026-11-10)
+
+### §45.0 Verdict
+
+**(a) Contained fix applied and verified.** Root cause: the §19
+`BravuraMetrics` table lacked codepoint 0xe010
+(`BravuraSymbols.LINE_CODE`), so the shim `TextLayout` fell back to
+stub bounds (height = font size) and
+`AbstractPitchedInter.populatePitchOffsets` computed lineHeight =
+200.0 instead of 6.40625, collapsing pitchHeight 25.0 → 0.80 and
+inflating every pitch offset ~31×; flat alters' measured pitches
+shifted +15.97, so `checkWithClefs` graded 0 and no key was ever
+created. Sharp keys use only `massPitch` (no area offset), which is
+why they survived. Fix: dump 0xe010's real desktop metrics and
+regenerate the table (157 → 158 codepoints). No Audiveris code
+changed; no TeaVM defect; no repro needed; nothing filed. New current
+clean build: **full-out110** (0 problems, 3,055 classes, 28,726
+methods). DIAG51's own prints then caught a second, self-inflicted
+bug (§45.5): the browse print NPE'd on empty hilos — fixed in ROUND
+56, print-only.
+
+### §45.1 Root cause, measured (DIAG51c recap + the table gap)
+
+DIAG51c (full-out107) had already localised the flip to
+`getAreaPitchOffset(FLAT)`: desktop 1.0559375, Wasm 33.0 (exactly).
+Both `pitchPositionOf` values were bit-identical and
+`flatMassPitchOffset` = 0.65 on both sides; the divergence was the
+offset formula `(−rect.getY() − rect.getHeight()/2) / pitchHeight`
+with `pitchHeight = (staffHeight − lineHeight)/8` — desktop
+staffHeight 206.40625, **lineHeight 6.40625**, pitchHeight 25.0;
+Wasm staffHeight 206.3988, **lineHeight 200.0** (= the font size),
+pitchHeight 0.79985. The FLAT rect itself was essentially identical
+(y ≈ −87.80, h ≈ 122.80). Exact mix shift: (33.0 − 1.0559375)/2 =
++15.97203125.
+
+`lineHeight` comes from
+`font.layout(BravuraSymbols.LINE_CODE).getBounds().getHeight()`
+(`LINE_CODE` = 0xe010). The shim `TextLayout.getBounds()` composes
+real bounds only when the font is Bravura AND every codepoint is in
+`BravuraMetrics`; otherwise it returns the stub
+`Rectangle2D(0, −ascent, advance, ascent+descent)` with height =
+font size (0.8 + 0.2). 0xe010 was absent from the table; 0xe01a
+(`STAFF_CODE`) was present — hence `staffHeight` correct and
+`lineHeight` wrong.
+
+Audit of all 169 codes in `BravuraSymbols.java` against the table:
+the only live gap is 0xe010. The other 11 missing codes (0xe527,
+0xe528, 0xe529, 0xe531, 0xe532, 0xe533, 0xe537, 0xe538, 0xe53b, 0xe53c,
+0xe53d) are dynamics shapes whose case lines are commented out in
+`BravuraSymbols.java` — never laid out.
+
+### §45.2 Fix
+
+- `teavm-fork/phase55/LineCodeDump.java` — minimal desktop dumper
+  (JDK 25 + stock jars, `-Djava.awt.headless=true`), mirroring
+  `SymbolMetricsDump`'s per-codepoint loop at sizes 40/84/168.
+- Dumped 0xe010 (`linecode-dump.out`): size 84 adv
+  42.00006103515625, bounds (0.0, −43.34375, 42.0, 2.6875); unit adv
+  0.500000726609003, x 0.0, y −0.5159970238095238, w 0.5, h
+  0.031994047619047616; maxLinErr 3.72e-5 (inside the §19 5.02e-4
+  envelope).
+- Sanity: at size 200 the unit height gives 6.3988 vs desktop's
+  directly measured 6.40625 (0.0074 px, size non-linearity inside the
+  documented envelope); pitchHeight becomes 25.0000, FLAT offset
+  1.0558 vs desktop 1.0559375 (Δ 0.00013, against the ±1.5/2.0
+  key-grade gate — negligible).
+- Merged into `teavm-fork/phase-font/symbol-metrics.json`
+  (`counts.codepoints` 157 → 158; original kept as
+  `symbol-metrics.json.bak157`), regenerated via
+  `gen_symbol_metrics.py` (its docstring updated 157 → 158).
+  `BravuraMetrics.java` now carries 57360 in CPS (sorted, between
+  57348 and 57370); `PreRenderedSymbolMetrics.java` byte-identical
+  (shapes unchanged).
+- No Audiveris source changed. No classlib/core change. The fix is
+  data in the shim table, the same mechanism as §19.
+
+### §45.3 Verification (diagnostic build full-out108, TEAVM_KEEP_DIAG=51)
+
+- Build: `build108.log`, Spike 0 problems, 3,055 classes, 28,726
+  methods.
+- DIAG51 pitchScale on Wasm: staffHeight=206.39880952380955
+  lineHeight=6.398809523809518 pitchHeight=25.000000000000004; FLAT
+  offset=1.0558035714285712.
+- **Widmung:** 2× `<fifths>-4</fifths>` (was 0), 207 alters (was 19,
+  desktop 207), 291 pitched (was 169, desktop 291), 299 note
+  elements = desktop. `.musicxml` 129,619 B vs desktop 129,611 B;
+  deep diff vs harness desktop: source-path (known filename
+  artefact) + 1 extra wedge stop + 2 slur bezier coords ±1 px. The
+  wedge stop was already present in Wasm at full-out92/94 (7 vs
+  desktop 6 in all three builds) — a pre-existing Wasm/desktop
+  wobble, unchanged by the fix.
+- **Wiegenlied:** 2× `<fifths>-3</fifths>`, time 2, 155 pitched (was
+  156 with the phantom G♭4), 165 note elements = desktop,
+  `implicit="yes"` ×2 (pickup m0 restored). Deep diff vs desktop:
+  source-path + 10 slur bezier hunks ±1–2 px + 1 extra tie (A♭4
+  m9→m10). The tie IS in the ground truth (GT `score.xml` ties A♭4
+  m9→m10) — Wasm matches GT, the harness desktop misses it.
+- **Controls on full-out108 byte-identical to full-out94:** hymn
+  `75637092…` (44,105 B), Hallelujah SATB `126771ec…` (105,434 B),
+  Lindenbaum `dbd546ba…` (99,305 B). (First Hallelujah run used the
+  wrong input — prep92 IMSLP p1, 258,209 B, kept as
+  `wasm-hallelujah-noocr108.musicxml` — re-ran with the correct
+  phase23 SATB input for the control comparison.)
+
+### §45.4 Spot-check: the other six flat-key pages (full-out108, then 109)
+
+Desktop comparators are the stock batch desktop `.mxl` files from the
+full-out92 tree (`open-music/wasm92/<page>/desktop/`); Wasm92
+numbers are the broken-build baselines.
+
+| page | key | fifths Wasm / desktop | pitch Wasm / desktop | note |
+|---|---|---|---|---|
+| BWV 397 (−1) | −1 ×4 | 4 / 4 | 209 / 209 | exact |
+| Après un rêve (−3) | −3 ×2 | 2 / 2 | 308 / 308 | exact, time 2 |
+| Erlkönig (−2) | −2 ×2 | 2 / 2 | 165 / 159 | +6, identical to wasm92 — pre-existing |
+| Wolf Verborgenheit (−3) | −3 ×2 | 2 / 2 | 301 / 298 | +3, identical to wasm92 — pre-existing |
+| Fauré Agnus (−1) | −1 ×15 | 15 / 15 | 95 / 96 | −1, identical to wasm92 — pre-existing; crashed on 108, see §45.5 |
+| Fauré Sanctus (−2/−3) | exact desktop sequence ×12 | 12 / 12 | 178 / 182 | −4, identical to wasm92 — pre-existing; crashed on 108, see §45.5 |
+
+Sanctus fifths sequence on Wasm109 is exactly the desktop sequence:
+[−3,−3,−3,−2,−3,−3,−2,−3,−3,−3,−3,−2]. The key is recovered on all
+six; the pitched gaps that remain are all identical to the full-out92
+Wasm numbers, i.e. pre-existing Wasm/desktop divergences the key fix
+did not move.
+
+### §45.5 Self-inflicted crash: DIAG51 browse print NPE on empty hilos (ROUND 56)
+
+- Both Fauré organ pages (23 staves, 1 system) died on Wasm
+  full-out108 with `RuntimeError: dereferencing a null pointer`
+  immediately after `DIAG51 hilos staff=1 inHeader=true []`.
+- Cause: my own DIAG51 browse print (ROUND 53) calls
+  `range.getStart()` unconditionally.
+  `StaffHeader.Range.getStart()` auto-unboxes the nullable `Integer
+  start`, which is null when no peaks were found (`setStart` only
+  runs inside peak processing: `KeyBuilder` lines 1432/1435/1877/
+  2440). Stock code never calls `getStart()` on an unpopulated
+  range, so this is purely a diagnostic-print bug — not the metrics
+  fix, not a TeaVM defect.
+- Proof: the desktop harness (same patched files) died identically
+  — `NullPointerException: Cannot invoke
+  "java.lang.Integer.intValue()" because "this.start" is null` at
+  `StaffHeader.java:237` via `KeyBuilder.java:2247`
+  (`desktop-agnus-noocr108.log`).
+- Fix (ROUND 56 in `make_patches.py`, before the ROUND 49 strip):
+  both range prints (browse + refine) now use
+  `(range.hasStart() ? range.getStart() : -1)`. Print-only,
+  desktop-neutral. `KeyBuilder` was patched by ROUND 53, so
+  `read_out`, not `copy_src` (per §39.1).
+- Re-verified: Wasm full-out109 Agnus exit 0 (`range=-1-595` for
+  staff 1), Sanctus exit 0; desktop harness recompiled with the
+  fixed `KeyBuilder` (javac into `phase23/classes`, exit 0,
+  `desktop-compile-diag51d.log`) — desktop Agnus exit 0,
+  `range=-1-595`, pitch 95, fifths 15.
+
+### §45.6 Clean build full-out110 + final verification
+
+- Build: `./build.sh` (no `TEAVM_KEEP_DIAG`), Spike 0 problems,
+  3,055 classes, 28,726 methods. Strip verified: 0 live DIAG51
+  prints remain (KeyBuilder 30, AbstractPitchedInter 2, AlterInter
+  2 removed).
+- Widmung clean = diagnostic: md5 `eec969c9…` (129,619 B).
+  Wiegenlied clean = diagnostic: md5 `9a1eb42f…` (72,470 B). The
+  prints are print-only — stripping changes nothing.
+- Controls byte-identical to full-out94: hymn `75637092…` (44,105
+  B), Hallelujah SATB `126771ec…` (105,434 B), Lindenbaum
+  `dbd546ba…` (99,305 B).
+- **full-out110 is the new current clean build.** The only delta
+  from full-out94 is the `BravuraMetrics` data (one codepoint) plus
+  the §44.1 writer guard already in full-out94.
+
+### §45.7 Residuals (not regressions, not blocking)
+
+- Erlkönig +6 pitched vs desktop, Wolf +3, Sanctus −4, Agnus −1
+  (harness; stock batch desktop is 96 vs harness 95 on Agnus) — all
+  identical to the full-out92 Wasm numbers; pre-existing
+  Wasm/desktop divergences, unchanged by this fix.
+- Widmung +1 wedge stop vs harness desktop (present since
+  full-out92) and ±1 px slur bezier wobbles (documented §19 family);
+  Wiegenlied +1 tie vs harness desktop where Wasm matches GT.
+- Still open (unchanged): DIAG53 (BWV p14 +2), real-browser Chrome
+  run, upstream filings (deferred), BrowserOCR follow-up,
+  photometric recovery, multi-file export N>1, unexercised writer
+  paths, Lindenbaum batch-vs-harness gap, Beethoven typeset p165,
+  StackRhythm wobbles, Beethoven p229 wall time.
+
+### §45.8 Artefacts
+
+- `teavm-fork/phase55/` — `LineCodeDump.java` + `classes/`,
+  `linecode-dump.out` / `.err`, `build108/109/110.log`,
+  `spike108/109/110.log`, `run-widmung108.log`,
+  `run-wiegenlied108.log`, `run-hymn108.log`,
+  `run-hallelujah108.log` (wrong-input IMSLP p1 run),
+  `run-hallelujah-satb108.log`, `run-lindenbaum108.log`,
+  `run-widmung-110.log`, `run-wiegenlied-110.log`,
+  `run-hymn-110.log`, `run-hallelujah-satb-110.log`,
+  `run-lindenbaum-110.log`, `verify110.sh` + `verify110.log`,
+  `spotcheck6.sh` + `spotcheck6.log`, `run-spot-*-108/109.log`,
+  `spot-*-108/109.musicxml`, `wasm-*-noocr108/110.musicxml`,
+  `agnus.png` (PIL mode `L` from the prep92 grey),
+  `desktop-agnus-noocr108.log` (crash repro),
+  `desktop-agnus-noocr109.log` (fixed),
+  `desktop-agnus-noocr109.musicxml`,
+  `desktop-compile-diag51d.log`.
+- `teavm-fork/phase-font/symbol-metrics.json` (158 codepoints) +
+  `symbol-metrics.json.bak157`;
+  `teavm/shims/src/java/awt/font/BravuraMetrics.java`
+  (regenerated); `gen_symbol_metrics.py` docstring 157 → 158.
+- `teavm/patched/make_patches.py` ROUND 56.
+- Builds: `full-out108/` (diagnostic, DIAG51 kept), `full-out109/`
+  (diagnostic + ROUND 56), `full-out110/` (clean, current).
