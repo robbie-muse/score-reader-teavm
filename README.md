@@ -18,13 +18,13 @@ end in Node (LOAD → PAGE → `.mxl`, lyrics included via a tesseract.js
 bridge) and matches desktop Audiveris on the control pages. It has
 **not** run in a real browser yet (no Chrome run — that is the next
 milestone), and it is not wired into the app's `reader.js`. See
-[Gaps](#gaps) and `teavm-fork/FORK_FIX.md` §45 for what is still open.
+[Gaps](#gaps) and `teavm-fork/FORK_FIX.md` §47 for what is still open.
 CheerpJ 5 remains the only working option for the shipped app.
 
-## What is verified (full-out110, the reference build)
+## What is verified (full-out113, the reference build)
 
-The reference build is **full-out110**: 0 problems, 3,055 classes,
-28,726 methods, `classes.wasm` 14,239,078 bytes, DIAG prints stripped.
+The reference build is **full-out113**: 0 problems, 3,055 classes,
+28,730 methods, `classes.wasm` 14,252,588 bytes, DIAG prints stripped.
 (The built `.wasm` is *not* in this repo — build outputs are excluded;
 rebuild from source below.)
 
@@ -32,7 +32,10 @@ rebuild from source below.)
 (`open-music/FULLOUT92_RESULTS.md` — the full-out92 run; full-out110
 changes nothing on the validated pages except the Mozart fix (§44.1)
 and the flat-key fix (§45: Widmung 291 pitched = desktop, Wiegenlied
-155 = desktop; controls byte-identical to full-out94)):
+155 = desktop; controls byte-identical to full-out94); full-out113
+changes nothing on any verified page — the §46 fix round and §47
+DIAG55 are output-identical to full-out110 (hymnal `.mxl`
+byte-identical, controls byte-identical)):
 
 - **Multi-page (37 pp: BWV 227, Hallelujah, Gute Nacht): 37/37
   complete, zero crashes, 31/37 identical note counts.** Whole-piece
@@ -66,7 +69,7 @@ and the flat-key fix (§45: Widmung 291 pitched = desktop, Wiegenlied
 | `teavm/lib/` | TeaVM 0.16.0 jars used at build time |
 | `teavm/out-teavm/runtime.mjs` | TeaVM WasmGC runtime loader used by the Node runners |
 | `teavm/hymn-satb.gray` + `.json` | Control-page test input (hymn, 2480×3507) |
-| `teavm-fork/FORK_FIX.md` | The master log: §§1–44, every defect, diagnostic, fix and verdict |
+| `teavm-fork/FORK_FIX.md` | The master log: §§1–47, every defect, diagnostic, fix and verdict |
 | `teavm-fork/*.patch` | Fork patches: classlib (TPoint/TDimension, TColor, hypot, retainAll, TFormatter, rint) + core (#21244, #21244b) + Audiveris-side (FloodFiller, ClefBuilder, TemplateFactory) |
 | `teavm-fork/lib-fork/` | The two current patched jars: `teavm-classlib-0.16.0.jar` (all five classlib patches) and `teavm-core-0.16.0-patched2.jar` (#21244/#15448). Pre-patch rollback jars are *not* included. |
 | `teavm-fork/run-fullout-*.mjs`, `save-mxl.mjs` | Node runners (no-OCR control, OCR, multi-score save) |
@@ -122,7 +125,7 @@ Notes:
 ```sh
 cd teavm-fork
 # No-OCR control run (grey input + {width,height} meta JSON):
-node run-fullout-noocr.mjs full-out110 ../teavm/hymn-satb.gray ../teavm/hymn-satb.json out.musicxml
+node run-fullout-noocr.mjs full-out113 ../teavm/hymn-satb.gray ../teavm/hymn-satb.json out.musicxml
 # Expected: exit 0, 44,105 B, 128 notes, 2 parts, 16 measures.
 ```
 
@@ -143,10 +146,11 @@ node run-fullout-noocr.mjs full-out110 ../teavm/hymn-satb.gray ../teavm/hymn-sat
 
 The test music is **not** in this repo. It is the open-source choral
 test set collected in `open-music/` on the spike machine
-(`choral-test-set.zip`, 283.9 MB, 618 files — ask the maintainer for
-the current zip): 28 one-page slices (Bach chorales, BWV 227 divisi,
-CC0 Lieder, Fauré organ, orchestral) + 3 full multi-page pieces
-(BWV 227, Hallelujah, Gute Nacht). Every page's licence is recorded
+(`choral-test-set.zip`, 313.2 MB, 978 files — ask the maintainer for
+the current zip): one-page slices (Bach chorales, BWV 227 divisi,
+CC0 Lieder, Fauré organ, orchestral, writer-path pages, hymnal) + 4
+full multi-page pieces (BWV 227, Hallelujah, Gute Nacht, Cantique de
+Jean Racine). Every page's licence is recorded
 exactly as stated at its source in `MANIFEST.md` (CC0, Public Domain,
 CC BY-NC-SA 4.0, CC BY-NC, CPDL); the four Bach chorales carry a
 "© 2004 Margaret Greentree, used by permission" encoding credit and
@@ -154,7 +158,10 @@ are testing-only, not for commercial redistribution.
 
 The validation report is `open-music/FULLOUT92_RESULTS.md` (full-out92
 run; the full-out94 fix round is `teavm-fork/FORK_FIX.md` §44, the
-full-out110 flat-key fix is §45). Runners
+full-out110 flat-key fix is §45). The 22-page additions run
+(writer paths, Cantique, hymnal, orchestral) is
+`open-music/FULLOUT110_ADDITIONS_RESULTS.md`; its fix round is §46
+and the DIAG55 hymnal split is §47. Runners
 and scorers live in `open-music/` (`run92_part1.py`,
 `multi-page/run_wasm92.py`, `score92.py`) — they are not in this repo
 yet; the `.gray` + `.json` control inputs that *are* here
@@ -193,14 +200,35 @@ which are the pages every § in `FORK_FIX.md` is verified against.
   rejection) — an Audiveris/page issue, not TeaVM.
 - **StackRhythm validity wobbles ±1–3 measures** (§25.5, unchanged).
 - **Beethoven p229 Wasm wall 863 s** (desktop 111 s) — worst observed
-  latency; needs a timing profile before calling the build shippable
-  for orchestral scans.
-- **Unexercised writer paths** (§22.3): pedal, grace notes, chord
-  names, measure repeats, octave shifts, drum parts — no test page
-  contains them yet.
-- **Lindenbaum batch-vs-harness 2-measure gap** (open): Wasm matches
-  the harness desktop (206/223); the batch desktop drops 2 piano
-  measures. Which desktop invocation is authoritative is unresolved.
+  latency; profiled in §46.5: the STEMS..SYMBOLS span is 83% of the
+  Wasm wall (656.8 s, ×52 vs desktop) while HEADS is ×1.9 — the TeaVM
+  penalty concentrates in graph work, not pixel work, and scales
+  roughly quadratically in single-system graph size (1 system,
+  36 staves, SIG 4,261; 18.2 s/staff vs Cantique 2.0). Needs a
+  per-substep timing split before any optimisation, and before calling
+  the build shippable for orchestral scans.
+- **Writer paths — VERIFIED at unit level (§46.3).** `WriterPathTest`
+  drives a mutated hymn Score through `MxlWriter.build`: `<grace>` ×1,
+  `<harmony>` ×1 (C major), `<unpitched>` ×40, `<measure-repeat>`
+  start + stop, `<octave-shift>` down + stop (same number 1, size 8) —
+  all 7 checks pass. The gap was pipeline-side (Audiveris never
+  produces those model elements on the test pages), not a writer bug.
+- **Hymnal −28 — SPLIT in §47 (DIAG55).** 28 = 22 template-driven
+  (stock-template harness SYMBOLS-END 119 vs pre-rendered 97, same
+  gray, same harness; request 57 → catalog 64, 12% oversize) + 6
+  gray-conversion (batch 125 pitched vs stock-harness 119 heads;
+  batch gray is max-RGB, harness/Wasm gray is PIL-L luma — all
+  2,338,180 px differ, max 22 levels) + **0 Wasm-side** (Wasm ==
+  pre-rendered desktop harness at every measured step, identical
+  checksums and COLUMN dumps to full float precision). The harness
+  TEXTS crash is solved too: it was the ROUND 20 DIAG24 dead block
+  (hard-coded ROI x 1854..1929 on a 1196-wide page) at
+  `SheetScanner.getCleanImage:143`, removed — stock code restored
+  exactly.
+- **Lindenbaum batch-vs-harness 2-measure gap** — reframed by §47:
+  most plausibly the same gray-conversion cause as the hymnal split
+  (batch gray is max-RGB, harness/Wasm gray is PIL-L luma). A cheap
+  check, still open, not yet run.
 - **Snow p5 template-catalog point size 140** still out of window at
   full 300 dpi (catalog {64,72,80,92,108} ±8); at the app's 4096 cap
   it scales to ~112, inside the window.
@@ -228,8 +256,8 @@ which are the pages every § in `FORK_FIX.md` is verified against.
 - **Single-threaded inline executor.** `OmrExecutors` pools are
   no-arg factories; `cpuCount` is 1. No true parallelism under Wasm.
 - **DIAG prints stripped in the clean build** (ROUND 49,
-  `strip_diag.py`); full-out110 is the reference. Diagnostic builds
-  (full-out93, 95–109) are not in this repo.
+  `strip_diag.py`); full-out113 is the reference. Diagnostic builds
+  (full-out111/112, DIAG54+55 kept) are not in this repo.
 
 ## Licensing
 
